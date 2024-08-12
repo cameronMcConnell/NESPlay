@@ -1,4 +1,5 @@
 use super::bus;
+use super::opcode;
 
 type Bus = bus::Bus;
 
@@ -23,5 +24,22 @@ impl<'a> Cpu<'a> {
             processor_status: 0,
             bus,
         }
+    }
+
+    pub fn inc_program_counter(&mut self) {
+        self.program_counter += 1;
+    }
+
+    pub fn set_program_counter(&mut self, address: u16) {
+        self.program_counter = address;
+    }
+
+    pub fn dec_stack_pointer(&mut self) {
+        self.stack_pointer -= 1;
+    }
+
+    pub fn execute_opcode(&mut self) {
+        let opcode = &opcode::CPU_OP_CODES[self.program_counter as usize];
+        self.inc_program_counter();
     }
 }
