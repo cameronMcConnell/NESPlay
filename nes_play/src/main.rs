@@ -1,7 +1,8 @@
-use nes_play::hardware;
+use nes_play::nes;
+
+type NES = nes::Nes;
 
 fn main() {
-    let _cpu = hardware::cpu::Cpu::new();
 
     println!("Hello, world!");
 }
