@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 type CPU<'a> = hardware::cpu::Cpu<'a>;
 type PPU<'a> = hardware::ppu::Ppu<'a>;
 type APU<'a> = hardware::apu::Apu<'a>;
-type BUS = hardware::bus::Bus;
+type Bus = hardware::bus::Bus;
 
 pub struct Nes<'a> {
     cpu: CPU<'a>,
@@ -23,5 +23,5 @@ impl<'a> Nes<'a> {
 }
 
 lazy_static! {
-    static ref NES_BUS: BUS = BUS::new();
+    static ref NES_BUS: Bus = Bus::new();
 }

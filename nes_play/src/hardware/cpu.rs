@@ -1,6 +1,6 @@
 use super::bus;
 
-type BUS = bus::Bus;
+type Bus = bus::Bus;
 
 pub struct Cpu<'a> {
     program_counter: u16,
@@ -9,11 +9,11 @@ pub struct Cpu<'a> {
     register_x: u8,
     register_y: u8,
     processor_status: u8,
-    bus: &'a BUS
+    bus: &'a Bus
 }
 
 impl<'a> Cpu<'a> {
-    pub fn new(bus: &'a BUS) -> Self {
+    pub fn new(bus: &'a Bus) -> Self {
         Cpu {
             program_counter: 0,
             stack_pointer: 0xFF,

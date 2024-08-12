@@ -1,13 +1,13 @@
 use super::bus;
 
-type BUS = bus::Bus;
+type Bus = bus::Bus;
 
 pub struct Ppu<'a> {
-    bus: &'a BUS,
+    bus: &'a Bus,
 }
 
 impl<'a> Ppu<'a> {
-    pub fn new(bus: &'a BUS) -> Self {
+    pub fn new(bus: &'a Bus) -> Self {
         Ppu {
             bus,
         }

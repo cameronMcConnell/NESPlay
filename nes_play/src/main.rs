@@ -1,8 +1,7 @@
 use nes_play::nes;
 
-type NES = nes::Nes;
+type Nes<'a> = nes::Nes<'a>;
 
 fn main() {
-
     println!("Hello, world!");
 }
