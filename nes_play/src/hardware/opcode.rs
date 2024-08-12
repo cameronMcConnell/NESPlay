@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use lazy_static::lazy_static;
 pub struct Opcode {
     code: u8,
@@ -7,7 +9,7 @@ pub struct Opcode {
     adressing_mode: AddressingModes,
 }
 
-enum AddressingModes {
+pub enum AddressingModes {
     Implied,
     Accumulator,
     Immediate,
@@ -32,6 +34,14 @@ impl Opcode {
             cycles,
             adressing_mode,
         }
+    }
+
+    pub fn title(&self) -> &str {
+        self.title
+    }
+
+    pub fn adressing_mode(&self) -> &AddressingModes {
+        &self.adressing_mode
     }
 }
 
