@@ -1,27 +1,28 @@
 use super::hardware;
-use lazy_static::lazy_static;
+use std::rc::Rc;
+use std::cell::RefCell;
 
-type Cpu<'a> = hardware::cpu::Cpu<'a>;
-type Ppu<'a> = hardware::ppu::Ppu<'a>;
-type Apu<'a> = hardware::apu::Apu<'a>;
+type Cpu = hardware::cpu::Cpu;
+type Ppu = hardware::ppu::Ppu;
+type Apu = hardware::apu::Apu;
 type Bus = hardware::bus::Bus;
 
-pub struct Nes<'a> {
-    cpu: Cpu<'a>,
-    ppu: Ppu<'a>,
-    apu: Apu<'a>,
+pub struct Nes {
+    cpu: Cpu,
+    ppu: Ppu,
+    apu: Apu,
+    bus: Rc<RefCell<Bus>>,
 }
 
 impl<'a> Nes<'a> {
     pub fn new() -> Self {
+        let bus = Rc::new(RefCell::new(Bus::new()));
+
         Nes {
-            cpu: Cpu::new(&NES_BUS),
-            ppu: Ppu::new(&NES_BUS),
-            apu: Apu::new(&NES_BUS),
+            cpu: Cpu::new(bus.clone()),
+            ppu: Ppu::new(bus.clone()),
+            apu: Apu::new(bus.clone()),
+            bus
         }
     }
-}
-
-lazy_static! {
-    static ref NES_BUS: Bus = Bus::new();
 }
