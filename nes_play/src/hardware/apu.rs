@@ -1,13 +1,15 @@
 use super::bus;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 type Bus = bus::Bus;
 
-pub struct Apu<'a> {
-    bus: &'a Bus
+pub struct Apu {
+    bus: Rc<RefCell<Bus>>,
 }
 
-impl<'a> Apu<'a> {
-    pub fn new(bus: &'a Bus) -> Self {
+impl Apu {
+    pub fn new(bus: Rc<RefCell<Bus>>) -> Self {
         Apu {
             bus
         }

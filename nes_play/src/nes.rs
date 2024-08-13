@@ -14,7 +14,7 @@ pub struct Nes {
     bus: Rc<RefCell<Bus>>,
 }
 
-impl<'a> Nes<'a> {
+impl Nes {
     pub fn new() -> Self {
         let bus = Rc::new(RefCell::new(Bus::new()));
 
@@ -22,7 +22,7 @@ impl<'a> Nes<'a> {
             cpu: Cpu::new(bus.clone()),
             ppu: Ppu::new(bus.clone()),
             apu: Apu::new(bus.clone()),
-            bus
+            bus,
         }
     }
 }
