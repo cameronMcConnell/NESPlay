@@ -38,8 +38,188 @@ impl<'a> Cpu<'a> {
         self.stack_pointer -= 1;
     }
 
+    fn match_opcode(&mut self) {
+        // let byte = self.bus.read_cpu_ram(self.program_counter as usize);
+        // self.inc_program_counter();
+
+        // match on bytes here for opcode in CPU_OP_CODES
+    }
+
     pub fn execute_opcode(&mut self) {
+        // This is wrong and I am dumb
         let opcode = &opcode::CPU_OP_CODES[self.program_counter as usize];
         self.inc_program_counter();
+
+        match opcode.title() {
+            "ADC" => {
+
+            }
+            "AND" => {
+
+            }
+            "ASL" => {
+
+            }
+            "BCC" => {
+
+            }
+            "BCS" => {
+
+            }
+            "BEQ" => {
+
+            }
+            "BIT" => {
+
+            }
+            "BMI" => {
+
+            }
+            "BNE" => {
+
+            }
+            "BPL" => {
+
+            }
+            "BRK" => {
+
+            }
+            "BVC" => {
+
+            }
+            "BVS" => {
+
+            }
+            "CLC" => {
+
+            }
+            "CLD" => {
+
+            }
+            "CLI" => {
+
+            }
+            "CLV" => {
+
+            }
+            "CMP" => {
+
+            }
+            "CPX" => {
+
+            }
+            "CPY" => {
+
+            }
+            "DEC" => {
+
+            }
+            "DEX" => {
+
+            }
+            "DEY" => {
+
+            }
+            "EOR" => {
+
+            }
+            "INC" => {
+
+            }
+            "INX" => {
+                
+            }
+            "INY" => {
+
+            }
+            "JMP" => {
+
+            }
+            "JSR" => {
+
+            }
+            "LDA" => {
+
+            }
+            "LDX" => {
+
+            }
+            "LDY" =>{
+
+            }
+            "LSR" => {
+
+            }
+            "NOP" => {
+
+            }
+            "ORA" => {
+
+            }
+            "PHA" => {
+
+            }
+            "PHP" => {
+
+            }
+            "PLA" => {
+
+            }
+            "PLP" => {
+
+            }
+            "ROL" => {
+
+            }
+            "ROR" => {
+
+            }
+            "RTI" => {
+
+            }
+            "RTS" => {
+
+            }
+            "SBC" => {
+
+            }
+            "SEC" => {
+
+            }
+            "SED" => {
+
+            }
+            "SEI" => {
+
+            }
+            "STA" => {
+
+            }
+            "STX" => {
+
+            }
+            "STY" => {
+
+            }
+            "TAX" => {
+
+            }
+            "TAY" => {
+
+            }
+            "TSX" => {
+
+            }
+            "TXA" => {
+
+            }
+            "TXS" => {
+
+            }
+            "TYA" => {
+                
+            }
+            _ => println!("Error matching opcode with title {}.", opcode.title())
+        }
     }
 }
