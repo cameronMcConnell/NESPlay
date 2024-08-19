@@ -102,8 +102,8 @@ impl Cpu {
         }
     }
 
-    fn inc_program_counter(&mut self) {
-        self.program_counter += 1;
+    fn inc_program_counter(&mut self, amount: u16) {
+        self.program_counter += amount;
     }
 
     pub fn set_program_counter(&mut self, address: u16) {
@@ -120,7 +120,7 @@ impl Cpu {
 
     pub fn execute_opcode(&mut self) {
         let code = self.bus.borrow_mut().read(self.program_counter);
-        self.inc_program_counter();
+        self.inc_program_counter(1);
 
         let opcode = opcode::CPU_OP_CODES.iter().find(|opcode| opcode.code == code).unwrap();
 
@@ -191,59 +191,85 @@ impl Cpu {
             
             AddressingModes::Accumulator => None,
             
-            AddressingModes::Immediate => Some(self.bus.borrow_mut().read(self.program_counter) as u16),
-            
-            AddressingModes::ZeroPage => Some(self.bus.borrow_mut().read(self.program_counter) as u16),
+            AddressingModes::Immediate => {
+                let address = self.program_counter;
+                self.inc_program_counter(1);
+                Some(address)
+            }
+
+            AddressingModes::ZeroPage => {
+                let address = self.bus.borrow_mut().read(self.program_counter) as u16;
+                self.inc_program_counter(1);
+                Some(address)
+            }
             
             AddressingModes::ZeroPageX => {
                 let base = self.bus.borrow_mut().read(self.program_counter) as u16;
-                Some(base + self.register_x as u16)
+                self.inc_program_counter(1);
+                Some(base.wrapping_add(self.register_x as u16) & 0x00FF)
             }
 
             AddressingModes::ZeroPageY => {
                 let base = self.bus.borrow_mut().read(self.program_counter) as u16;
-                Some(base + self.register_y as u16)
+                self.inc_program_counter(1);
+                Some(base.wrapping_add(self.register_y as u16) & 0x00FF)
             },
 
-            AddressingModes::Relative => Some(self.bus.borrow_mut().read(self.program_counter) as u16),
+            AddressingModes::Relative => {
+                let offset = self.bus.borrow_mut().read(self.program_counter) as i8;
+                self.inc_program_counter(1);
+                Some((self.program_counter as i16 + offset as i16) as u16)
+            }
 
             AddressingModes::Absolute => {
                 let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
                 let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
+                self.inc_program_counter(2);
                 Some((hi << 8) | lo)
             },
 
             AddressingModes::AbsoluteX => {
                 let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
                 let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
-                Some(((hi << 8) | lo) + self.register_x as u16)
+                self.inc_program_counter(2);
+                Some(((hi << 8) | lo).wrapping_add(self.register_x as u16))
             },
 
             AddressingModes::AbsoluteY => {
                 let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
                 let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
-                Some(((hi << 8) | lo) + self.register_y as u16)
+                self.inc_program_counter(2);
+                Some(((hi << 8) | lo).wrapping_add(self.register_y as u16))
             },
 
             AddressingModes::Indirect => {
                 let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
                 let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
+                self.inc_program_counter(2);
                 let address = (hi << 8) | lo;
-                Some(self.bus.borrow_mut().read(address) as u16)
+
+                // apparently this is a bug in the 6502
+                let lo_indirect = self.bus.borrow_mut().read(address) as u16;
+                let hi_indirect = self.bus.borrow_mut().read((address & 0xFF00) | ((address + 1) & 0x00FF)) as u16;
+
+                Some((hi_indirect << 8) | lo_indirect)
             }
 
             AddressingModes::IndirectX => {
-                let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
-                let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
-                let address = ((hi << 8) | lo) + self.register_x as u16;
-                Some(self.bus.borrow_mut().read(address) as u16)
+                let base = self.bus.borrow_mut().read(self.program_counter);
+                self.inc_program_counter(1);
+                let address = (base.wrapping_add(self.register_x)) as u16;
+                let lo = self.bus.borrow_mut().read(address) as u16;
+                let hi = self.bus.borrow_mut().read((address + 1) & 0x00FF) as u16;
+                Some((hi << 8) | lo)
             },
 
             AddressingModes::IndirectY => {
-                let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
-                let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
-                let address = (hi << 8) | lo;
-                Some(self.bus.borrow_mut().read(address) as u16 + self.register_y as u16)
+                let base = self.bus.borrow_mut().read(self.program_counter) as u16;
+                self.inc_program_counter(1);
+                let lo = self.bus.borrow_mut().read(base) as u16;
+                let hi = self.bus.borrow_mut().read((base + 1) & 0x00FF) as u16;
+                Some(((hi << 8) | lo).wrapping_add(self.register_y as u16))
             }
         }
     }
@@ -251,8 +277,8 @@ impl Cpu {
     fn add_with_carry(&mut self, opcode: &Opcode) {
         match self.get_address(&opcode.adressing_mode) {
             Some(address) => {
-                let append = self.bus.borrow_mut().read(address) + self.processor_status.get_carry_flag();
-                let sum = self.register_a as u16 + append as u16;
+                let operand = self.bus.borrow_mut().read(address) + self.processor_status.get_carry_flag();
+                let sum = self.register_a as u16 + operand as u16;
 
                 if sum > 0xFF {
                     self.processor_status.set_carry_flag();
@@ -261,9 +287,9 @@ impl Cpu {
                     self.processor_status.clear_carry_flag();
                 }
 
-                let result = self.register_a.wrapping_add(append);
+                let result = self.register_a.wrapping_add(operand);
 
-                if (self.register_a ^ result) & (append ^ result) & 0b10000000 != 0 {
+                if (self.register_a ^ result) & (operand ^ result) & 0b10000000 != 0 {
                     self.processor_status.set_overflow_flag();
                 }
                 else {
@@ -279,7 +305,7 @@ impl Cpu {
                     self.processor_status.clear_zero_flag();
                 }
 
-                if self.register_a & 0b10000000 == 0b10000000 {
+                if self.register_a & 0b10000000 != 0 {
                     self.processor_status.set_negative_flag();
                 }
                 else {
@@ -291,18 +317,103 @@ impl Cpu {
     }
 
     fn logical_and(&mut self, opcode: &Opcode) {
+        match self.get_address(&opcode.adressing_mode) {
+            Some(address) => {
+                let operand = self.bus.borrow_mut().read(address);
+                
+                self.register_a &= operand;
 
+                if self.register_a == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_a & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            }
+            None => panic!("Unsupported addressing mode for opcode AND.")
+        }
     }
 
     fn arithmetic_shift_left(&mut self, opcode: &Opcode) {
+        match self.get_address(&opcode.adressing_mode) {
+            Some(address) => {
+                let operand = self.bus.borrow_mut().read(address);
 
+                if operand & 0b10000000 != 0 {
+                    self.processor_status.set_carry_flag();
+                }
+                else {
+                    self.processor_status.clear_carry_flag();
+                }
+
+                let result = operand << 1;
+                self.bus.borrow_mut().write(address, result);
+
+                if result == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if result & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            }
+            None => match &opcode.adressing_mode {
+                AddressingModes::Accumulator => {
+                    if self.register_a & 0b10000000 != 0 {
+                        self.processor_status.set_carry_flag();
+                    }
+                    else {
+                        self.processor_status.clear_carry_flag();
+                    }
+
+                    self.register_a <<= 1;
+
+                    if self.register_a == 0 {
+                        self.processor_status.set_zero_flag();
+                    }
+                    else {
+                        self.processor_status.clear_zero_flag();
+                    }
+
+                    if self.register_a & 0b10000000 != 0 {
+                        self.processor_status.set_negative_flag();
+                    }
+                    else {
+                        self.processor_status.clear_negative_flag();
+                    }
+                }
+                _ => panic!("Unsupported addressing mode for opcode ASL.")
+            }
+        }
     }
 
     fn branch_if_carry_clear(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.adressing_mode) {
+            Some(address) => {
+                if self.processor_status.get_carry_flag() != 0 {
+                    return;
+                }
+
+                self.program_counter = address;
+            }
+            None => panic!("Unsupported addressing mode for opcode BCC.")
+        } 
     }
 
-    fn branch_if_carry_set (&mut self, opcode: &Opcode) {
+    fn branch_if_carry_set(&mut self, opcode: &Opcode) {
         
     }
 
