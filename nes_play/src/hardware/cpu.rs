@@ -18,82 +18,74 @@ pub struct Cpu {
 }
 
 struct ProcessStatus {
-    pub carry_flag: bool,
-    pub zero_flag: bool,
-    pub interrupt_disable_flag: bool,
-    pub decimal_mode_flag: bool,
-    pub break_command: bool,
-    pub overflow_flag: bool,
-    pub negative_flag: bool,
+    pub status: u8
 }
 
 impl ProcessStatus {
     pub fn new() -> Self {
         ProcessStatus {
-            carry_flag: false,
-            zero_flag: false,
-            interrupt_disable_flag: false,
-            decimal_mode_flag: false,
-            break_command: false,
-            overflow_flag: false,
-            negative_flag: false,
+            status: 0,
         }
     }
 
     pub fn set_carry_flag(&mut self) {
-        self.carry_flag = true;
+        self.status |= 0b00000001;
     }
 
     pub fn set_zero_flag(&mut self) {
-        self.zero_flag = true;
+        self.status |= 0b00000010;
     }
 
     pub fn set_interrupt_disable_flag(&mut self) {
-        self.interrupt_disable_flag = true;
+        self.status |= 0b00000100;
     }
 
     pub fn set_decimal_mode_flag(&mut self) {
-        self.decimal_mode_flag = true;
+        self.status |= 0b00001000;
     }
 
     pub fn set_break_command(&mut self) {
-        self.break_command = true;
+        self.status |= 0b00010000;
     }
 
     pub fn set_overflow_flag(&mut self) {
-        self.overflow_flag = true;
+        self.status |= 0b00100000;
     }
 
     pub fn set_negative_flag(&mut self) {
-        self.negative_flag = true;
+        self.status |= 0b01000000;
     }
 
     pub fn clear_carry_flag(&mut self) {
-        self.carry_flag = false;
+        self.status &= 0b11111110;
     }
 
-    pub fn clear_set_zero_flag(&mut self) {
-        self.zero_flag = false;
+    pub fn clear_zero_flag(&mut self) {
+        self.status &= 0b11111101;
     }
 
     pub fn clear_interrupt_disable_flag(&mut self) {
-        self.interrupt_disable_flag = false;
+        self.status &= 0b11111011;
     }
 
     pub fn clear_decimal_mode_flag(&mut self) {
-        self.decimal_mode_flag = false;
+        self.status &= 0b11110111;
     }
 
     pub fn clear_break_command(&mut self) {
-        self.break_command = false;
+        self.status &= 0b11101111;
     }
 
     pub fn clear_overflow_flag(&mut self) {
-        self.overflow_flag = false;
+        self.status &= 0b11011111;
     }
 
     pub fn clear_negative_flag(&mut self) {
-        self.negative_flag = false;
+        self.status &= 0b10111111;
+    }
+
+    pub fn get_carry_flag(&mut self) -> u8 {
+        self.status & 0b00000001
     }
 }
 
@@ -259,9 +251,41 @@ impl Cpu {
     fn add_with_carry(&mut self, opcode: &Opcode) {
         match self.get_address(&opcode.adressing_mode) {
             Some(address) => {
-                
+                let append = self.bus.borrow_mut().read(address) + self.processor_status.get_carry_flag();
+                let sum = self.register_a as u16 + append as u16;
+
+                if sum > 0xFF {
+                    self.processor_status.set_carry_flag();
                 }
-            },
+                else {
+                    self.processor_status.clear_carry_flag();
+                }
+
+                let result = self.register_a.wrapping_add(append);
+
+                if (self.register_a ^ result) & (append ^ result) & 0b10000000 != 0 {
+                    self.processor_status.set_overflow_flag();
+                }
+                else {
+                    self.processor_status.clear_overflow_flag();
+                }
+
+                self.register_a = result;
+
+                if self.register_a == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_a & 0b10000000 == 0b10000000 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            }
             None => panic!("Unsupported addressing mode for opcode ADC.")
         }
     }
