@@ -87,6 +87,10 @@ impl ProcessStatus {
     pub fn get_carry_flag(&mut self) -> u8 {
         self.status & 0b00000001
     }
+
+    pub fn get_zero_flag(&mut self) -> u8 {
+        self.status & 0b00000010
+    }
 }
 
 impl Cpu {
@@ -277,8 +281,8 @@ impl Cpu {
     fn add_with_carry(&mut self, opcode: &Opcode) {
         match self.get_address(&opcode.adressing_mode) {
             Some(address) => {
-                let operand = self.bus.borrow_mut().read(address) + self.processor_status.get_carry_flag();
-                let sum = self.register_a as u16 + operand as u16;
+                let memory = self.bus.borrow_mut().read(address) + self.processor_status.get_carry_flag();
+                let sum = self.register_a as u16 + memory as u16;
 
                 if sum > 0xFF {
                     self.processor_status.set_carry_flag();
@@ -287,9 +291,9 @@ impl Cpu {
                     self.processor_status.clear_carry_flag();
                 }
 
-                let result = self.register_a.wrapping_add(operand);
+                let result = self.register_a.wrapping_add(memory);
 
-                if (self.register_a ^ result) & (operand ^ result) & 0b10000000 != 0 {
+                if (self.register_a ^ result) & (memory ^ result) & 0b10000000 != 0 {
                     self.processor_status.set_overflow_flag();
                 }
                 else {
@@ -319,9 +323,9 @@ impl Cpu {
     fn logical_and(&mut self, opcode: &Opcode) {
         match self.get_address(&opcode.adressing_mode) {
             Some(address) => {
-                let operand = self.bus.borrow_mut().read(address);
+                let memory = self.bus.borrow_mut().read(address);
                 
-                self.register_a &= operand;
+                self.register_a &= memory;
 
                 if self.register_a == 0 {
                     self.processor_status.set_zero_flag();
@@ -344,16 +348,16 @@ impl Cpu {
     fn arithmetic_shift_left(&mut self, opcode: &Opcode) {
         match self.get_address(&opcode.adressing_mode) {
             Some(address) => {
-                let operand = self.bus.borrow_mut().read(address);
+                let memory = self.bus.borrow_mut().read(address);
 
-                if operand & 0b10000000 != 0 {
+                if memory & 0b10000000 != 0 {
                     self.processor_status.set_carry_flag();
                 }
                 else {
                     self.processor_status.clear_carry_flag();
                 }
 
-                let result = operand << 1;
+                let result = memory << 1;
                 self.bus.borrow_mut().write(address, result);
 
                 if result == 0 {
@@ -414,15 +418,61 @@ impl Cpu {
     }
 
     fn branch_if_carry_set(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.adressing_mode) {
+            Some(address) => {
+                if self.processor_status.get_carry_flag() != 1 {
+                    return;
+                }
+
+                self.program_counter = address;
+            }
+            None => panic!("Unsupported addressing mode for opcode BCS.")
+        } 
     }
 
     fn branch_if_equal(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.adressing_mode) {
+            Some(address) => {
+                if self.processor_status.get_zero_flag() == 0 {
+                    return;
+                }
+
+                self.program_counter = address;
+            }
+            None => panic!("Unsupported addressing mode for opcode BEQ.")
+        } 
     }
 
     fn bit_test(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.adressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                if memory & 0b01000000 != 0 {
+                    self.processor_status.set_overflow_flag();
+                }
+                else {
+                    self.processor_status.clear_overflow_flag();
+                }
+
+                if memory & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+
+                let result = self.register_a & memory;
+
+                if result == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+            }
+            None => panic!("Unsupported addressing mode for opcode BIT.")
+        }
     }
 
     fn branch_if_minus(&mut self, opcode: &Opcode) {
