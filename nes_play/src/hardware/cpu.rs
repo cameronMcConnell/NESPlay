@@ -90,10 +90,6 @@ impl ProcessStatus {
         self.status & 0b00000010
     }
 
-    pub fn get_break_command(&mut self) -> u8 {
-        self.status & 0b00010000
-    }
-
     pub fn get_overflow_flag(&mut self) -> u8 {
         self.status & 0b00100000
     }
@@ -199,7 +195,7 @@ impl Cpu {
             "TXA" => self.transfer_x_to_accumulator(opcode),
             "TXS" => self.transfer_x_to_stack_pointer(opcode),
             "TYA" => self.transfer_y_to_accumulator(opcode),
-            _ => println!("Error matching opcode with title {}.", opcode.title)
+            _ => panic!("Error matching opcode with title {}.", opcode.title)
         }
     }
 
@@ -291,7 +287,7 @@ impl Cpu {
     }
 
     fn add_with_carry(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address) + self.processor_status.get_carry_flag();
                 let sum = self.register_a as u16 + memory as u16;
@@ -334,7 +330,7 @@ impl Cpu {
     }
 
     fn logical_and(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
                 
@@ -360,7 +356,7 @@ impl Cpu {
     }
 
     fn arithmetic_shift_left(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -389,7 +385,7 @@ impl Cpu {
                 }
             },
 
-            None => match &opcode.adressing_mode {
+            None => match &opcode.addressing_mode {
                 AddressingModes::Accumulator => {
                     if self.register_a & 0b10000000 != 0 {
                         self.processor_status.set_carry_flag();
@@ -421,7 +417,7 @@ impl Cpu {
     }
 
     fn branch_if_carry_clear(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 if self.processor_status.get_carry_flag() != 0 {
                     return;
@@ -435,7 +431,7 @@ impl Cpu {
     }
 
     fn branch_if_carry_set(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 if self.processor_status.get_carry_flag() != 1 {
                     return;
@@ -449,7 +445,7 @@ impl Cpu {
     }
 
     fn branch_if_equal(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 if self.processor_status.get_zero_flag() == 0 {
                     return;
@@ -463,7 +459,7 @@ impl Cpu {
     }
 
     fn bit_test(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -496,7 +492,7 @@ impl Cpu {
     }
 
     fn branch_if_minus(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 if self.processor_status.get_negative_flag() == 0 {
                     return;
@@ -510,7 +506,7 @@ impl Cpu {
     }
 
     fn branch_if_not_equal(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 if self.processor_status.get_zero_flag() != 0 {
                     return;
@@ -524,7 +520,7 @@ impl Cpu {
     }
 
     fn branch_if_positive(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 if self.processor_status.get_negative_flag() != 0 {
                     return;
@@ -538,7 +534,7 @@ impl Cpu {
     }
 
     fn force_interrupt(&mut self, opcode: &Opcode) {
-        match &opcode.adressing_mode {
+        match &opcode.addressing_mode {
             AddressingModes::Implied => {
                 let hi_pc = ((self.program_counter & 0xFF00) >> 8) as u8;
                 let lo_pc = (self.program_counter & 0x00FF) as u8;
@@ -561,7 +557,7 @@ impl Cpu {
     }
 
     fn branch_if_overflow_clear(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 if self.processor_status.get_overflow_flag() != 0 {
                     return;
@@ -575,7 +571,7 @@ impl Cpu {
     }
 
     fn branch_if_overflow_set(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 if self.processor_status.get_overflow_flag() == 0 {
                     return;
@@ -589,7 +585,7 @@ impl Cpu {
     }
 
     fn clear_carry_flag(&mut self, opcode: &Opcode) {
-        match &opcode.adressing_mode {
+        match &opcode.addressing_mode {
             AddressingModes::Implied => {
                 self.processor_status.clear_carry_flag();
             },
@@ -599,7 +595,7 @@ impl Cpu {
     }
 
     fn clear_decimal_mode(&mut self, opcode: &Opcode) {
-        match &opcode.adressing_mode {
+        match &opcode.addressing_mode {
             AddressingModes::Implied => {
                 self.processor_status.clear_decimal_mode_flag();
             },
@@ -609,7 +605,7 @@ impl Cpu {
     }
 
     fn clear_interrupt_disable(&mut self, opcode: &Opcode) {
-        match &opcode.adressing_mode {
+        match &opcode.addressing_mode {
             AddressingModes::Implied => {
                 self.processor_status.clear_interrupt_disable_flag();
             },
@@ -619,7 +615,7 @@ impl Cpu {
     }
 
     fn clear_overflow_flag(&mut self, opcode: &Opcode) {
-        match &opcode.adressing_mode {
+        match &opcode.addressing_mode {
             AddressingModes::Implied => {
                 self.processor_status.clear_overflow_flag();
             },
@@ -629,7 +625,7 @@ impl Cpu {
     }
 
     fn compare(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -662,7 +658,7 @@ impl Cpu {
     }
 
     fn compare_x_register(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -695,7 +691,7 @@ impl Cpu {
     }
 
     fn compare_y_register(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -728,7 +724,7 @@ impl Cpu {
     }
 
     fn decrement_memory(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.adressing_mode) {
+        match self.get_address(&opcode.addressing_mode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -756,7 +752,7 @@ impl Cpu {
     }
 
     fn decrement_x_register(&mut self, opcode: &Opcode) {
-        match &opcode.adressing_mode {
+        match &opcode.addressing_mode {
             AddressingModes::Implied => {
                 self.register_x = self.register_x.wrapping_sub(1);
 
@@ -780,7 +776,7 @@ impl Cpu {
     }
 
     fn decrement_y_register(&mut self, opcode: &Opcode) {
-        match &opcode.adressing_mode {
+        match &opcode.addressing_mode {
             AddressingModes::Implied => {
                 self.register_y = self.register_y.wrapping_sub(1);
 
@@ -804,134 +800,750 @@ impl Cpu {
     }
 
     fn exclusive_or(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                self.register_a ^= memory;
+
+                if self.register_a == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_a & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => panic!("Unsupported addressing mode for opcode EOR.")
+        }
     }
 
     fn increment_memory(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                let result = memory.wrapping_add(1);
+
+                self.bus.borrow_mut().write(address, result);
+
+                if result == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if result & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => panic!("Unsupported addressing mode for opcode INC.")
+        }
     }
 
     fn increment_x_register(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.register_x = self.register_x.wrapping_add(1);
+
+                if self.register_x == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_x & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode INX.")
+        }
     }
 
     fn increment_y_register(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.register_y = self.register_y.wrapping_add(1);
+
+                if self.register_y == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_y & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode INX.")
+        }
     }
 
     fn jump(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                self.program_counter = address;
+            },
+
+            None => panic!("Unsupported addressing mode for opcode JMP.")
+        }
     }
 
     fn jump_to_subroutine(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let hi_pc = ((self.program_counter.wrapping_sub(1) & 0xFF00) >> 8) as u8;
+                let lo_pc = (self.program_counter.wrapping_sub(1) & 0x00FF) as u8;
+
+                self.stack_push(hi_pc);
+                self.stack_push(lo_pc);
+
+                self.program_counter = address;
+            },
+
+            None => panic!("Unsupported addressing mode for opcode JSR.")
+        }
     }
 
     fn load_accumulator(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                self.register_a = memory;
+
+                if self.register_a == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_a & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => panic!("Unsupported addressing mode for opcode LDA.")
+        }
     }
 
     fn load_x_register(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                self.register_x = memory;
+
+                if self.register_x == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_x & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => panic!("Unsupported addressing mode for opcode LDX.")
+        }
     }
 
     fn load_y_register(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                self.register_y = memory;
+
+                if self.register_y == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_y & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => panic!("Unsupported addressing mode for opcode LDY.")
+        }
     }
 
     fn logical_shift_right(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                if memory & 0b00000001 != 0 {
+                    self.processor_status.set_carry_flag();
+                }
+                else {
+                    self.processor_status.clear_carry_flag();
+                }
+
+                let result = memory >> 1;
+
+                self.bus.borrow_mut().write(address, result);
+
+                if result == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if result & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => match &opcode.addressing_mode {
+                AddressingModes::Accumulator => {
+                    if self.register_a & 0b00000001 != 0 {
+                        self.processor_status.set_carry_flag();
+                    }
+                    else {
+                        self.processor_status.clear_carry_flag();
+                    }
+
+                    self.register_a = self.register_a >> 1;
+
+                    if self.register_a == 0 {
+                        self.processor_status.set_zero_flag();
+                    }
+                    else {
+                        self.processor_status.clear_zero_flag();
+                    }
+
+                    if self.register_a & 0b10000000 != 0 {
+                        self.processor_status.set_negative_flag();
+                    }
+                    else {
+                        self.processor_status.clear_negative_flag();
+                    }
+                },
+
+                _ => panic!("Unsupported addressing mode for opcode LSR.")
+            }
+        }
     }
 
     fn no_operation(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                return;
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode NOP.")
+        }
     }
 
     fn logical_inclusive_or(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                self.register_a |= memory;
+
+                if self.register_a == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_a & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => panic!("Unsupported addressing mode for opcode ORA.")
+        }
     }
 
     fn push_accumulator(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.stack_push(self.register_a);
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode PHA.")
+        }
     }
 
     fn push_processor_status(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.stack_push(self.processor_status.status);
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode PHP.")
+        }
     }
 
     fn pull_accumulator(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.register_a = self.stack_pop();
+
+                if self.register_a == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_a & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode PLA.")
+        }
     }
 
     fn pull_processor_status(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.processor_status.status = self.stack_pop();
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode PLP.")
+        }
     }
 
     fn rotate_left(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                let result = (memory << 1) | self.processor_status.get_carry_flag();
+
+                if memory & 0b10000000 != 0 {
+                    self.processor_status.set_carry_flag();
+                }
+                else {
+                    self.processor_status.clear_carry_flag();
+                }
+
+                self.bus.borrow_mut().write(address, result);
+
+                if result == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if result & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => match &opcode.addressing_mode {
+                AddressingModes::Accumulator => {
+                    let result = (self.register_a << 1) | self.processor_status.get_carry_flag();
+
+                    if self.register_a & 0b10000000 != 0 {
+                        self.processor_status.set_carry_flag();
+                    }
+                    else {
+                        self.processor_status.clear_carry_flag();
+                    }
+
+                    self.register_a = result;
+
+                    if result == 0 {
+                        self.processor_status.set_zero_flag();
+                    }
+                    else {
+                        self.processor_status.clear_zero_flag();
+                    }
+
+                    if result & 0b10000000 != 0 {
+                        self.processor_status.set_negative_flag();
+                    }
+                    else {
+                        self.processor_status.clear_negative_flag();
+                    }
+                },
+
+                _ => panic!("Unsupported addressing mode for opcode ROL.")
+            }
+        }
     }
 
     fn rotate_right(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                let result = (memory >> 1) | (self.processor_status.get_carry_flag() << 7);
+
+                if memory & 0b00000001 != 0 {
+                    self.processor_status.set_carry_flag();
+                }
+                else {
+                    self.processor_status.clear_carry_flag();
+                }
+
+                self.bus.borrow_mut().write(address, result);
+
+                if result == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if result & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            None => match &opcode.addressing_mode {
+                AddressingModes::Accumulator => {
+                    let result = (self.register_a >> 1) | (self.processor_status.get_carry_flag() << 7);
+    
+                    if self.register_a & 0b00000001 != 0 {
+                        self.processor_status.set_carry_flag();
+                    }
+                    else {
+                        self.processor_status.clear_carry_flag();
+                    }
+    
+                    self.register_a = result;
+    
+                    if result == 0 {
+                        self.processor_status.set_zero_flag();
+                    }
+                    else {
+                        self.processor_status.clear_zero_flag();
+                    }
+    
+                    if result & 0b10000000 != 0 {
+                        self.processor_status.set_negative_flag();
+                    }
+                    else {
+                        self.processor_status.clear_negative_flag();
+                    }
+                },
+
+                _ => panic!("Unsupported addressing mode for opcode ROR.")
+            }
+        }
     }
 
     fn return_from_interrupt(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                let status = self.stack_pop();
+
+                self.processor_status.status = status;
+
+                let lo_pc = self.stack_pop() as u16;
+                let hi_pc = (self.stack_pop() as u16) << 8;
+
+                self.program_counter = hi_pc | lo_pc;
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode RTI.")
+        }
     }
 
     fn return_from_subroutine(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                let lo_pc = self.stack_pop() as u16;
+                let hi_pc = (self.stack_pop() as u16) << 8;
+
+                self.program_counter = (hi_pc | lo_pc).wrapping_add(1);
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode RTS.")
+        }
     }
 
     fn subtract_with_carry(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                let memory = self.bus.borrow_mut().read(address);
+
+                let result = self.register_a.wrapping_sub(memory).wrapping_sub(1 - self.processor_status.get_carry_flag());
+
+                if self.register_a >= memory + (1 - self.processor_status.get_carry_flag()) {
+                    self.processor_status.set_carry_flag();
+                }
+                else {
+                    self.processor_status.clear_carry_flag();
+                }
+
+                if result == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if result & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+
+                if (self.register_a ^ result) & (memory ^ result) & 0b10000000 != 0 {
+                    self.processor_status.set_overflow_flag();
+                }
+                else {
+                    self.processor_status.clear_overflow_flag();
+                }
+
+                self.register_a = result;
+            },
+
+            None => panic!("Unsupported addressing mode for opcode SBC.")
+        }
     }
 
     fn set_carry_flag(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.processor_status.set_carry_flag();
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode SEC.")
+        }
     }
 
     fn set_decimal_flag(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.processor_status.set_decimal_mode_flag();
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode SED.")
+        }
     }
 
     fn set_interrupt_disable(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.processor_status.set_interrupt_disable_flag();
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode SEI.")
+        }
     }
 
     fn store_accumulator(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                self.bus.borrow_mut().write(address, self.register_a);
+            },
+
+            None => panic!("Unsupported addressing mode for STA.")
+        }
     }
 
     fn store_x_register(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                self.bus.borrow_mut().write(address, self.register_x);
+            },
+
+            None => panic!("Unsupported addressing mode for STX.")
+        }
     }
 
     fn store_y_register(&mut self, opcode: &Opcode) {
-        
+        match self.get_address(&opcode.addressing_mode) {
+            Some(address) => {
+                self.bus.borrow_mut().write(address, self.register_y);
+            },
+
+            None => panic!("Unsupported addressing mode for STY.")
+        }
     }
 
     fn transfer_accumulator_to_x(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.register_x = self.register_a;
+
+                if self.register_x == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_x & 0b1000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode TAX.")
+        }
     }
 
     fn transfer_accumulator_to_y(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.register_y = self.register_a;
+
+                if self.register_y == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_y & 0b1000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode TAY.")
+        }
     }
 
     fn transfer_stack_pointer_to_x(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.register_x = self.stack_pointer;
+
+                if self.register_x == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_x & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode TSX.")
+        }
     }
 
     fn transfer_x_to_accumulator(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.register_a = self.register_x;
+
+                if self.register_a == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_a & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode TXA.")
+        }
     }
 
     fn transfer_x_to_stack_pointer(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.stack_pointer = self.register_x;
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode TXS.")
+        }
     }
 
     fn transfer_y_to_accumulator(&mut self, opcode: &Opcode) {
-        
+        match &opcode.addressing_mode {
+            AddressingModes::Implied => {
+                self.register_a = self.register_y;
+
+                if self.register_a == 0 {
+                    self.processor_status.set_zero_flag();
+                }
+                else {
+                    self.processor_status.clear_zero_flag();
+                }
+
+                if self.register_a & 0b10000000 != 0 {
+                    self.processor_status.set_negative_flag();
+                }
+                else {
+                    self.processor_status.clear_negative_flag();
+                }
+            },
+
+            _ => panic!("Unsupported addressing mode for opcode TYA.")
+        }
     }
 }

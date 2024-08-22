@@ -4,7 +4,7 @@ pub struct Opcode {
     pub title: &'static str,
     pub bytes: u8,
     pub cycles: u8,
-    pub adressing_mode: AddressingModes,
+    pub addressing_mode: AddressingModes,
 }
 
 pub enum AddressingModes {
@@ -24,13 +24,13 @@ pub enum AddressingModes {
 }
 
 impl Opcode {
-    fn new(code: u8, title: &'static str, bytes: u8, cycles: u8, adressing_mode: AddressingModes) -> Self {
+    fn new(code: u8, title: &'static str, bytes: u8, cycles: u8, addressing_mode: AddressingModes) -> Self {
         Opcode {
             code,
             title,
             bytes,
             cycles,
-            adressing_mode,
+            addressing_mode,
         }
     }
 }
