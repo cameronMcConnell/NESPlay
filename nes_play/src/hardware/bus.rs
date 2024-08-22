@@ -1,6 +1,5 @@
 pub struct Bus {
     vram: [u8; 2048],
-    cpu_clock_cycle: u64,
     ppu_clock_cycle: u64,
     apu_clock_cycle: u64,
 }
@@ -9,7 +8,6 @@ impl Bus {
     pub fn new() -> Self {
         Bus {
             vram: [0; 2048],
-            cpu_clock_cycle: 0,
             ppu_clock_cycle: 0,
             apu_clock_cycle: 0,
         }
@@ -17,13 +15,8 @@ impl Bus {
 
     pub fn reset(&mut self) {
         self.vram = [0; 2048];
-        self.cpu_clock_cycle = 0;
         self.ppu_clock_cycle = 0;
         self.apu_clock_cycle = 0;
-    }
-
-    pub fn inc_cpu_clock_cycle(&mut self) {
-        self.cpu_clock_cycle += 1;
     }
     
     pub fn inc_ppu_clock_cycle(&mut self) {

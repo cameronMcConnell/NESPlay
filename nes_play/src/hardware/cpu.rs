@@ -11,6 +11,7 @@ pub struct Cpu {
     register_a: u8,
     register_x: u8,
     register_y: u8,
+    clock_cycle: u64,
     processor_status: ProcessStatus,
     bus: Rc<RefCell<Bus>>,
 }
@@ -107,6 +108,7 @@ impl Cpu {
             register_a: 0,
             register_x: 0,
             register_y: 0,
+            clock_cycle: 0,
             processor_status: ProcessStatus::new(),
             bus,
         }
