@@ -2,6 +2,7 @@ use super::bus::Bus;
 use super::opcode;
 use super::opcode::Opcode;
 use super::opcode::AddressingModes;
+use super::opcode::PageCrossing;
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -43,10 +44,6 @@ impl ProcessStatus {
         self.status |= 0b00001000;
     }
 
-    pub fn set_break_command(&mut self) {
-        self.status |= 0b00010000;
-    }
-
     pub fn set_overflow_flag(&mut self) {
         self.status |= 0b00100000;
     }
@@ -69,10 +66,6 @@ impl ProcessStatus {
 
     pub fn clear_decimal_mode_flag(&mut self) {
         self.status &= 0b11110111;
-    }
-
-    pub fn clear_break_command(&mut self) {
-        self.status &= 0b11101111;
     }
 
     pub fn clear_overflow_flag(&mut self) {
@@ -114,7 +107,7 @@ impl Cpu {
         }
     }
 
-    fn inc_program_counter(&mut self, amount: u16) {
+    fn increment_program_counter(&mut self, amount: u16) {
         self.program_counter += amount;
     }
 
@@ -134,9 +127,13 @@ impl Cpu {
         self.bus.borrow_mut().read(address)
     }
 
+    fn increment_clock_cycle(&mut self, amount: u8) {
+        self.clock_cycle += amount as u64;
+    }
+
     pub fn execute_opcode(&mut self) {
         let code = self.bus.borrow_mut().read(self.program_counter);
-        self.inc_program_counter(1);
+        self.increment_program_counter(1);
 
         let opcode = opcode::CPU_OP_CODES.iter().find(|opcode| opcode.code == code).unwrap();
 
@@ -201,63 +198,112 @@ impl Cpu {
         }
     }
 
-    fn get_address(&mut self, mode: &AddressingModes) -> Option<u16> {
-        match mode {
+    fn get_address(&mut self, opcode: &Opcode) -> Option<u16> {
+        match &opcode.addressing_mode {
             AddressingModes::Immediate => {
                 let address = self.program_counter;
-                self.inc_program_counter(1);
+                self.increment_program_counter(1);
+                self.increment_clock_cycle(opcode.cycles);
                 Some(address)
             }
 
             AddressingModes::ZeroPage => {
                 let address = self.bus.borrow_mut().read(self.program_counter) as u16;
-                self.inc_program_counter(1);
+                self.increment_program_counter(1);
+                self.increment_clock_cycle(opcode.cycles);
                 Some(address)
             }
             
             AddressingModes::ZeroPageX => {
                 let base = self.bus.borrow_mut().read(self.program_counter) as u16;
-                self.inc_program_counter(1);
+                self.increment_program_counter(1);
+                self.increment_clock_cycle(opcode.cycles);
                 Some(base.wrapping_add(self.register_x as u16) & 0x00FF)
             }
 
             AddressingModes::ZeroPageY => {
                 let base = self.bus.borrow_mut().read(self.program_counter) as u16;
-                self.inc_program_counter(1);
+                self.increment_program_counter(1);
+                self.increment_clock_cycle(opcode.cycles);
                 Some(base.wrapping_add(self.register_y as u16) & 0x00FF)
             },
 
             AddressingModes::Relative => {
                 let offset = self.bus.borrow_mut().read(self.program_counter) as i8;
-                self.inc_program_counter(1);
-                Some((self.program_counter as i16 + offset as i16) as u16)
+                
+                self.increment_program_counter(1);
+                self.increment_clock_cycle(opcode.cycles);
+
+                let new_address = (self.program_counter as i16 + offset as i16) as u16;
+
+                if self.is_page_crossed(self.program_counter, new_address) {
+                    self.increment_clock_cycle(2);
+                }
+
+                Some(new_address)
             }
 
             AddressingModes::Absolute => {
                 let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
                 let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
-                self.inc_program_counter(2);
+                
+                self.increment_program_counter(2);
+                self.increment_clock_cycle(opcode.cycles);
+                
                 Some((hi << 8) | lo)
             },
 
             AddressingModes::AbsoluteX => {
                 let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
                 let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
-                self.inc_program_counter(2);
-                Some(((hi << 8) | lo).wrapping_add(self.register_x as u16))
+                
+                self.increment_program_counter(2);
+                self.increment_clock_cycle(opcode.cycles);
+
+                let base_address = (hi << 8) | lo;
+                let new_address = base_address.wrapping_add(self.register_x as u16);
+
+                match opcode.page_crossing {
+                    PageCrossing::Crossed => {
+                        if self.is_page_crossed(base_address, new_address) {
+                            self.increment_clock_cycle(1);
+                        }
+                    },
+                    PageCrossing::NoCross => (),
+                }
+
+                Some(new_address)
             },
 
             AddressingModes::AbsoluteY => {
                 let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
                 let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
-                self.inc_program_counter(2);
+                
+                self.increment_program_counter(2);
+                self.increment_clock_cycle(opcode.cycles);
+
+                let base_address = (hi << 8) | lo;
+                let new_address = base_address.wrapping_add(self.register_y as u16);
+
+                match opcode.page_crossing {
+                    PageCrossing::Crossed => {
+                        if self.is_page_crossed(base_address, new_address) {
+                            self.increment_clock_cycle(1);
+                        }
+                    },
+                    PageCrossing::NoCross => (),
+                }
+
                 Some(((hi << 8) | lo).wrapping_add(self.register_y as u16))
             },
 
             AddressingModes::Indirect => {
                 let lo = self.bus.borrow_mut().read(self.program_counter) as u16;
                 let hi = self.bus.borrow_mut().read(self.program_counter + 1) as u16;
-                self.inc_program_counter(2);
+                
+                self.increment_program_counter(2);
+                self.increment_clock_cycle(opcode.cycles);
+                
                 let address = (hi << 8) | lo;
 
                 // apparently this is a bug in the 6502
@@ -269,27 +315,51 @@ impl Cpu {
 
             AddressingModes::IndirectX => {
                 let base = self.bus.borrow_mut().read(self.program_counter);
-                self.inc_program_counter(1);
+                
+                self.increment_program_counter(1);
+                self.increment_clock_cycle(opcode.cycles);
+                
                 let address = (base.wrapping_add(self.register_x)) as u16;
                 let lo = self.bus.borrow_mut().read(address) as u16;
                 let hi = self.bus.borrow_mut().read((address + 1) & 0x00FF) as u16;
+                
                 Some((hi << 8) | lo)
             },
 
             AddressingModes::IndirectY => {
                 let base = self.bus.borrow_mut().read(self.program_counter) as u16;
-                self.inc_program_counter(1);
+                
+                self.increment_program_counter(1);
+                self.increment_clock_cycle(opcode.cycles);
+                
                 let lo = self.bus.borrow_mut().read(base) as u16;
                 let hi = self.bus.borrow_mut().read((base + 1) & 0x00FF) as u16;
-                Some(((hi << 8) | lo).wrapping_add(self.register_y as u16))
+
+                let base_address = (hi << 8) | lo;
+                let new_address = base_address.wrapping_add(self.register_y as u16);
+
+                match opcode.page_crossing {
+                    PageCrossing::Crossed => {
+                        if self.is_page_crossed(base_address, new_address) {
+                            self.increment_clock_cycle(1);
+                        }
+                    },
+                    PageCrossing::NoCross => (),
+                }
+                
+                Some(new_address)
             },
 
             _ => None
         }
     }
 
+    fn is_page_crossed(&mut self, base_address: u16, new_address: u16) -> bool {
+        (base_address & 0xFF00) != (new_address & 0xFF00)
+    }
+
     fn add_with_carry(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address) + self.processor_status.get_carry_flag();
                 let sum = self.register_a as u16 + memory as u16;
@@ -332,7 +402,7 @@ impl Cpu {
     }
 
     fn logical_and(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
                 
@@ -358,7 +428,7 @@ impl Cpu {
     }
 
     fn arithmetic_shift_left(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -419,13 +489,14 @@ impl Cpu {
     }
 
     fn branch_if_carry_clear(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 if self.processor_status.get_carry_flag() != 0 {
                     return;
                 }
 
-                self.program_counter = address;
+                self.increment_clock_cycle(1);
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode BCC.")
@@ -433,13 +504,14 @@ impl Cpu {
     }
 
     fn branch_if_carry_set(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 if self.processor_status.get_carry_flag() != 1 {
                     return;
                 }
 
-                self.program_counter = address;
+                self.increment_clock_cycle(1);
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode BCS.")
@@ -447,13 +519,14 @@ impl Cpu {
     }
 
     fn branch_if_equal(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 if self.processor_status.get_zero_flag() == 0 {
                     return;
                 }
 
-                self.program_counter = address;
+                self.increment_clock_cycle(1);
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode BEQ.")
@@ -461,7 +534,7 @@ impl Cpu {
     }
 
     fn bit_test(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -494,13 +567,14 @@ impl Cpu {
     }
 
     fn branch_if_minus(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 if self.processor_status.get_negative_flag() == 0 {
                     return;
                 }
 
-                self.program_counter = address;
+                self.increment_clock_cycle(1);
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode BMI.")
@@ -508,13 +582,14 @@ impl Cpu {
     }
 
     fn branch_if_not_equal(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 if self.processor_status.get_zero_flag() != 0 {
                     return;
                 }
 
-                self.program_counter = address;
+                self.increment_clock_cycle(1);
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode BNE.")
@@ -522,13 +597,14 @@ impl Cpu {
     }
 
     fn branch_if_positive(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 if self.processor_status.get_negative_flag() != 0 {
                     return;
                 }
 
-                self.program_counter = address;
+                self.increment_clock_cycle(1);
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode BPL.")
@@ -551,7 +627,7 @@ impl Cpu {
 
                 let target = ((hi_interrupt as u16) << 8) | lo_interrupt as u16;
 
-                self.program_counter = target;
+                self.set_program_counter(target);
             },
 
             _ => panic!("Unsupported addressing mode for opcode BRK.")
@@ -559,13 +635,14 @@ impl Cpu {
     }
 
     fn branch_if_overflow_clear(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 if self.processor_status.get_overflow_flag() != 0 {
                     return;
                 }
 
-                self.program_counter = address;
+                self.increment_clock_cycle(1);
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode BVC.")
@@ -573,16 +650,17 @@ impl Cpu {
     }
 
     fn branch_if_overflow_set(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 if self.processor_status.get_overflow_flag() == 0 {
                     return;
                 }
 
-                self.program_counter = address;
+                self.increment_clock_cycle(1);
+                self.set_program_counter(address);
             },
 
-            None => panic!("Unsupported addressing mode for opcode BVC.")
+            None => panic!("Unsupported addressing mode for opcode BVS.")
         }
     }
 
@@ -627,7 +705,7 @@ impl Cpu {
     }
 
     fn compare(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -660,7 +738,7 @@ impl Cpu {
     }
 
     fn compare_x_register(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -693,7 +771,7 @@ impl Cpu {
     }
 
     fn compare_y_register(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -726,7 +804,7 @@ impl Cpu {
     }
 
     fn decrement_memory(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -802,7 +880,7 @@ impl Cpu {
     }
 
     fn exclusive_or(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -828,7 +906,7 @@ impl Cpu {
     }
 
     fn increment_memory(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -899,14 +977,14 @@ impl Cpu {
                 }
             },
 
-            _ => panic!("Unsupported addressing mode for opcode INX.")
+            _ => panic!("Unsupported addressing mode for opcode INY.")
         }
     }
 
     fn jump(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
-                self.program_counter = address;
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode JMP.")
@@ -914,7 +992,7 @@ impl Cpu {
     }
 
     fn jump_to_subroutine(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let hi_pc = ((self.program_counter.wrapping_sub(1) & 0xFF00) >> 8) as u8;
                 let lo_pc = (self.program_counter.wrapping_sub(1) & 0x00FF) as u8;
@@ -922,7 +1000,7 @@ impl Cpu {
                 self.stack_push(hi_pc);
                 self.stack_push(lo_pc);
 
-                self.program_counter = address;
+                self.set_program_counter(address);
             },
 
             None => panic!("Unsupported addressing mode for opcode JSR.")
@@ -930,7 +1008,7 @@ impl Cpu {
     }
 
     fn load_accumulator(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -956,7 +1034,7 @@ impl Cpu {
     }
 
     fn load_x_register(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -982,7 +1060,7 @@ impl Cpu {
     }
 
     fn load_y_register(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -1008,7 +1086,7 @@ impl Cpu {
     }
 
     fn logical_shift_right(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -1080,7 +1158,7 @@ impl Cpu {
     }
 
     fn logical_inclusive_or(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -1160,7 +1238,7 @@ impl Cpu {
     }
 
     fn rotate_left(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -1224,7 +1302,7 @@ impl Cpu {
     }
 
     fn rotate_right(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -1290,14 +1368,16 @@ impl Cpu {
     fn return_from_interrupt(&mut self, opcode: &Opcode) {
         match &opcode.addressing_mode {
             AddressingModes::Implied => {
-                let status = self.stack_pop();
+                let status = self.stack_pop() & 0b11011111;
 
                 self.processor_status.status = status;
 
                 let lo_pc = self.stack_pop() as u16;
                 let hi_pc = (self.stack_pop() as u16) << 8;
 
-                self.program_counter = hi_pc | lo_pc;
+                let address = hi_pc | lo_pc;
+
+                self.set_program_counter(address);
             },
 
             _ => panic!("Unsupported addressing mode for opcode RTI.")
@@ -1310,7 +1390,9 @@ impl Cpu {
                 let lo_pc = self.stack_pop() as u16;
                 let hi_pc = (self.stack_pop() as u16) << 8;
 
-                self.program_counter = (hi_pc | lo_pc).wrapping_add(1);
+                let address = (hi_pc | lo_pc).wrapping_add(1);
+
+                self.set_program_counter(address);
             },
 
             _ => panic!("Unsupported addressing mode for opcode RTS.")
@@ -1318,7 +1400,7 @@ impl Cpu {
     }
 
     fn subtract_with_carry(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 let memory = self.bus.borrow_mut().read(address);
 
@@ -1390,7 +1472,7 @@ impl Cpu {
     }
 
     fn store_accumulator(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 self.bus.borrow_mut().write(address, self.register_a);
             },
@@ -1400,7 +1482,7 @@ impl Cpu {
     }
 
     fn store_x_register(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 self.bus.borrow_mut().write(address, self.register_x);
             },
@@ -1410,7 +1492,7 @@ impl Cpu {
     }
 
     fn store_y_register(&mut self, opcode: &Opcode) {
-        match self.get_address(&opcode.addressing_mode) {
+        match self.get_address(opcode) {
             Some(address) => {
                 self.bus.borrow_mut().write(address, self.register_y);
             },
