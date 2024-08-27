@@ -1,6 +1,4 @@
-use nes_play::nes;
-
-type Nes = nes::Nes;
+use nes_play::nes::Nes;
 
 fn main() {
     let nes = Nes::new();
