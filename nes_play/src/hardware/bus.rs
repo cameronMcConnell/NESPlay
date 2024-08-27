@@ -42,7 +42,7 @@ impl Bus {
                 self.vram[mirror_address as usize] = data;
             },
             PPU_REGISTERS ..= PPU_REGISTERS_MIRRORS_END => {
-                let mirror_address = address & 0b00100000_00000111;;
+                let mirror_address = address & 0b00100000_00000111;
                 self.vram[mirror_address as usize] = data;
             },
             _ => {

@@ -1,11 +1,10 @@
-use super::hardware;
+use super::hardware::cpu::Cpu;
+use super::hardware::ppu::Ppu;
+use super::hardware::apu::Apu;
+use super::hardware::bus::Bus;
+
 use std::rc::Rc;
 use std::cell::RefCell;
-
-type Cpu = hardware::cpu::Cpu;
-type Ppu = hardware::ppu::Ppu;
-type Apu = hardware::apu::Apu;
-type Bus = hardware::bus::Bus;
 
 pub struct Nes {
     cpu: Cpu,

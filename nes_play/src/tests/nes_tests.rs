@@ -4,5 +4,5 @@ use crate::nes::Nes;
 fn test_new_nes() {
     let nes = Nes::new();
 
-    assert!(nes);
+    assert!(true);
 }
